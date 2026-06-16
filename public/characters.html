@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Postacie</title>
-<script src="/socket.io/socket.io.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
 <style>
@@ -625,15 +624,12 @@ setTimeout(() => authInput.focus(), 100);
 function submitPassword() {
   const pass = authInput.value;
   socket.emit('checkPassword', pass, ok => {
-    if (ok) {
-      localStorage.setItem('auth', '1');
-      unlock();
-    } else {
+    if (ok) { localStorage.setItem('auth','1'); unlock(); }
+    else {
       authInput.classList.add('error');
       authError.innerText = 'Nieprawidłowe hasło';
-      setTimeout(() => { authInput.classList.remove('error'); authError.innerText = ''; }, 1500);
-      authInput.value = '';
-      authInput.focus();
+      setTimeout(() => { authInput.classList.remove('error'); authError.innerText=''; }, 1500);
+      authInput.value=''; authInput.focus();
     }
   });
 }
@@ -641,11 +637,16 @@ function submitPassword() {
 function unlock() {
   authOverlay.classList.add('hidden');
   pageContent.classList.remove('locked');
-  // po animacji całkiem ukryj overlay
   setTimeout(() => { authOverlay.style.display = 'none'; }, 400);
+  if (pendingCharsData)   { applyCharsListUpdate(pendingCharsData);   pendingCharsData=null; }
+  if (pendingCharsOrder)  { applyCharOrderUpdate(pendingCharsOrder);  pendingCharsOrder=null; }
+  if (pendingCharsUpdate) { applyCharsData(pendingCharsUpdate);       pendingCharsUpdate=null; }
+  if (pendingTasksUpdate) { applyTasksData(pendingTasksUpdate);       pendingTasksUpdate=null; }
 }
 
-let chars = {}; // postacie ładowane z serwera
+let chars = {};
+let pendingCharsData=null, pendingCharsOrder=null, pendingCharsUpdate=null, pendingTasksUpdate=null;
+function isUnlocked() { const o=document.getElementById('authOverlay'); return !o||o.classList.contains('hidden')||o.style.display==='none'; }
 const icons = {
   KU:    '/icons/skillbook.png',
   Poly:  '/icons/polymorph.png',
@@ -1354,12 +1355,32 @@ function applyTasksData(data) {
 }
 
 function applyTasksUpdate(data) {
-  const anyCard = document.querySelector('.char-card');
-  if (!anyCard) { window._pendingTasksData = data; return; }
-  applyTasksData(data);
+  for (const char in data) {
+    const body  = document.getElementById('body_' + char);
+    const panel = document.getElementById('addpanel_' + char);
+    if (!body || !panel) continue;
+    const tasksObj = (data[char] && !Array.isArray(data[char])) ? data[char] : {};
+    const taskNames = Object.keys(tasksObj);
+    // Usuń stare
+    body.querySelectorAll('.task-row').forEach(row => {
+      const t = row.id.replace('task_'+char+'_','');
+      if (!tasksObj[t]) { delete checkboxes[char+'_'+t]; row.remove(); }
+    });
+    // Dodaj nowe i ustaw stan
+    taskNames.forEach(task => {
+      if (!document.getElementById('task_'+char+'_'+task))
+        body.insertBefore(createTaskRow(char,task), panel);
+      const done = !!(tasksObj[task] && tasksObj[task].done);
+      const cb = checkboxes[char+'_'+task];
+      const row = document.getElementById('task_'+char+'_'+task);
+      if (cb) cb.checked = done;
+      if (row) row.classList.toggle('done', done);
+    });
+  }
+  if (window._savedCharOrder) applyCharOrder(window._savedCharOrder);
 }
 socket.on('tasksUpdate', data => {
-  if (!isUnlocked()) { pendingTasksUpdate = data; return; }
+  if (!isUnlocked()) { pendingTasksUpdate=data; return; }
   applyTasksUpdate(data);
 });
 
@@ -1496,36 +1517,31 @@ function applyCharactersUpdate(data) {
   applyCharsData(data);
 }
 socket.on('charactersUpdate', data => {
-  if (!isUnlocked()) { pendingCharsUpdate = data; return; }
+  if (!isUnlocked()) { pendingCharsUpdate=data; return; }
   applyCharactersUpdate(data);
 });
 
-function applyCharOrderUpdate(order) {
-  window._savedCharOrder = order;
-  applyCharOrder(order);
-}
+function applyCharOrderUpdate(order) { window._savedCharOrder=order; applyCharOrder(order); }
 socket.on('charOrderUpdate', order => {
-  if (!isUnlocked()) { pendingCharsOrder = order; return; }
+  if (!isUnlocked()) { pendingCharsOrder=order; return; }
   applyCharOrderUpdate(order);
 });
 
-socket.on('charsListUpdate', data => {
-  // Buduj karty dla wszystkich z listy których nie ma w DOM
+function applyCharsListUpdate(data) {
   for (const name in data) {
     chars[name] = data[name];
     if (!document.querySelector('.char-card[data-char="' + name + '"]')) {
-      // data[name] może być obiektem {icon} lub stringiem (ścieżką ikony)
-      const iconVal = (typeof data[name] === 'object') ? (data[name].icon || '') : (data[name] || '');
+      const iconVal = (typeof data[name]==='object') ? (data[name].icon||'') : (data[name]||'');
       buildCharCard(name, iconVal);
     }
   }
-  // Usuń karty których już nie ma na liście
   document.querySelectorAll('.char-card').forEach(card => {
-    if (!data[card.dataset.char]) {
-      card.remove();
-      delete chars[card.dataset.char];
-    }
+    if (!data[card.dataset.char]) { card.remove(); delete chars[card.dataset.char]; }
   });
+}
+socket.on('charsListUpdate', data => {
+  if (!isUnlocked()) { pendingCharsData=data; return; }
+  applyCharsListUpdate(data);
   if (window._savedCharOrder) applyCharOrder(window._savedCharOrder);
 
   // Po zbudowaniu kart — aplikuj zapisane dane tasks i characters
@@ -1654,6 +1670,7 @@ if (localStorage.getItem('elixCollapsed') === '1') {
 
 calcElix();
 </script>
+
 
 </body>
 </html>
