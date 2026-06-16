@@ -527,7 +527,7 @@
 <div class="bg-layer"></div>
 
 <!-- MODAL HASŁA -->
-<div class="auth-overlay" id="authOverlay" style="display:none;">
+<div class="auth-overlay" id="authOverlay">
   <div class="auth-box">
     <div class="auth-ornament"><div class="auth-diamond"></div></div>
     <div class="auth-title">Strefa Chroniona</div>
@@ -614,7 +614,9 @@ const authInput   = document.getElementById('authInput');
 const authError   = document.getElementById('authError');
 
 // Sprawdź czy hasło zapisane w sessionStorage
-unlock();
+if (localStorage.getItem('auth') === '1') {
+  unlock();
+}
 
 authInput.addEventListener('keydown', e => { if (e.key === 'Enter') submitPassword(); });
 // Fokus na input po załadowaniu
@@ -1648,5 +1650,7 @@ calcElix();
 </script>
 
 
+<script src="/auth.js"></script>
+<script>requireAuth();</script>
 </body>
 </html>
