@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Postacie</title>
+<script src="/socket.io/socket.io.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
 <style>
@@ -550,7 +551,7 @@
   </div>
 </div>
 
-<div class="page-content" id="pageContent">
+<div class="page-content locked" id="pageContent">
 
 <div class="topnav">
   <div class="nav-left">
@@ -613,7 +614,7 @@ const authInput   = document.getElementById('authInput');
 const authError   = document.getElementById('authError');
 
 // Sprawdź czy hasło zapisane w sessionStorage
-unlock(); // brak hasła — otwarta dla wszystkich
+unlock();
 
 authInput.addEventListener('keydown', e => { if (e.key === 'Enter') submitPassword(); });
 // Fokus na input po załadowaniu
@@ -642,7 +643,15 @@ function unlock() {
   setTimeout(() => { authOverlay.style.display = 'none'; }, 400);
 }
 
-let chars = {};
+let chars = {
+  Medal:             '/icons/warrior.png',
+  Bieluszek:         '/icons/ninja.png',
+  Pojara:            '/icons/shaman.png',
+  Suczka:            '/icons/shaman.png',
+  Czantorianka:      '/icons/shaman.png',
+  EwaZajączkowska:   '/icons/warriorw.png',
+  Yodasz:            '/icons/sura.png'
+};
 const icons = {
   KU:    '/icons/skillbook.png',
   Poly:  '/icons/polymorph.png',
@@ -1321,31 +1330,46 @@ function applyTasksData(data) {
     const body  = document.getElementById('body_' + char);
     const panel = document.getElementById('addpanel_' + char);
     if (!body || !panel) continue;
-    // Obsłuż zarówno tablicę jak i obiekt z serwera
-    const raw = data[char];
-    const tasksObj = Array.isArray(raw)
-      ? Object.fromEntries(raw.map(t => [t, {done:false}]))
-      : (raw || {});
-    const taskNames = Object.keys(tasksObj);
-    // Usuń taski których już nie ma
+
     body.querySelectorAll('.task-row').forEach(row => {
-      const t = row.id.replace('task_'+char+'_','');
-      if (!taskNames.includes(t)) { delete checkboxes[char+'_'+t]; row.remove(); }
+      const taskName = row.id.replace('task_' + char + '_', '');
+      if (!data[char].includes(taskName)) {
+        delete checkboxes[char + '_' + taskName];
+        row.remove();
+      }
     });
-    // Dodaj nowe i ustaw stan
-    taskNames.forEach(task => {
-      if (!document.getElementById('task_'+char+'_'+task))
+
+    data[char].forEach(task => {
+      if (!document.getElementById('task_' + char + '_' + task)) {
         body.insertBefore(createTaskRow(char, task), panel);
-      const done = !!(tasksObj[task] && tasksObj[task].done);
-      const cb  = checkboxes[char+'_'+task];
-      const row = document.getElementById('task_'+char+'_'+task);
-      if (cb)  cb.checked = done;
-      if (row) row.classList.toggle('done', done);
+      }
     });
+
+    if (lastCharData[char]) {
+      const charState = lastCharData[char];
+      for (const task in charState) {
+        if (SKIP_KEYS && SKIP_KEYS.has(task)) continue;
+        const row = document.getElementById('task_' + char + '_' + task);
+        if (!row) continue;
+        const cb = checkboxes[char + '_' + task];
+        if (cb) { cb.checked = !!charState[task]; row.classList.toggle('done', !!charState[task]); }
+      }
+    }
   }
   if (window._savedCharOrder) applyCharOrder(window._savedCharOrder);
 }
 
+socket.on('tasksUpdate', data => {
+  const anyCard = document.querySelector('.char-card');
+  if (!anyCard) { window._pendingTasksData = data; return; }
+  applyTasksData(data);
+});
+
+/* CHECKBOXES + MEDAL TIMER STATE FROM SERVER */
+const SKIP_KEYS = new Set(['horseTimer','spiritStoneTimer','hasStone','hasMedal','bioCurrent',
+  'bioDoneToday','bioDoneTotal','bioDoneChecked','bioTriedToday','stones','horseLevel','medalGivenToday']);
+
+let lastCharData = {};
 
 function applyCharsData(data) {
   lastCharData = data;
@@ -1484,8 +1508,7 @@ socket.on('charsListUpdate', data => {
   for (const name in data) {
     chars[name] = data[name];
     if (!document.querySelector('.char-card[data-char="' + name + '"]')) {
-      const _icon = (typeof data[name]==='object') ? (data[name].icon||'') : (data[name]||'');
-      buildCharCard(name, _icon);
+      buildCharCard(name, data[name]);
     }
   }
   // Usuń karty których już nie ma na liście
