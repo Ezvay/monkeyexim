@@ -1,0 +1,14 @@
+{
+  "name": "metin2-characters-tracker",
+  "version": "1.0.0",
+  "description": "Metin2 Character Tracker",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.6.1",
+    "mongodb": "^5.7.0"
+  }
+}
