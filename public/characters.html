@@ -526,6 +526,18 @@
 <div class="bg-layer"></div>
 
 <!-- MODAL HASŁA -->
+<div class="auth-overlay" id="authOverlay" style="display:none;">
+  <div class="auth-box">
+    <div class="auth-ornament"><div class="auth-diamond"></div></div>
+    <div class="auth-title">Strefa Chroniona</div>
+    <div class="auth-sub">Wpisz hasło aby wejść</div>
+    <div class="auth-input-wrap">
+      <input class="auth-input" id="authInput" type="password" placeholder="••••••••" autocomplete="off">
+    </div>
+    <div class="auth-error" id="authError"></div>
+    <button class="auth-btn" onclick="submitPassword()">Wejdź</button>
+  </div>
+</div>
 
 <!-- UNIVERSAL INIT MODAL -->
 <div class="stone-modal-overlay hidden" id="initModal">
@@ -594,13 +606,43 @@
 <script>
 const socket = io();
 
+/* === AUTORYZACJA === */
+const authOverlay = document.getElementById('authOverlay');
+const pageContent = document.getElementById('pageContent');
+const authInput   = document.getElementById('authInput');
+const authError   = document.getElementById('authError');
 
+// Sprawdź czy hasło zapisane w sessionStorage
+unlock(); // brak hasła — otwarta dla wszystkich
 
+authInput.addEventListener('keydown', e => { if (e.key === 'Enter') submitPassword(); });
+// Fokus na input po załadowaniu
+setTimeout(() => authInput.focus(), 100);
 
+function submitPassword() {
+  const pass = authInput.value;
+  socket.emit('checkPassword', pass, ok => {
+    if (ok) {
+      localStorage.setItem('auth', '1');
+      unlock();
+    } else {
+      authInput.classList.add('error');
+      authError.innerText = 'Nieprawidłowe hasło';
+      setTimeout(() => { authInput.classList.remove('error'); authError.innerText = ''; }, 1500);
+      authInput.value = '';
+      authInput.focus();
+    }
+  });
+}
+
+function unlock() {
+  authOverlay.classList.add('hidden');
+  pageContent.classList.remove('locked');
+  // po animacji całkiem ukryj overlay
+  setTimeout(() => { authOverlay.style.display = 'none'; }, 400);
+}
 
 let chars = {};
-let pendingCharsData=null, pendingCharsOrder=null, pendingCharsUpdate=null, pendingTasksUpdate=null;
-function isUnlocked() { return true; }
 const icons = {
   KU:    '/icons/skillbook.png',
   Poly:  '/icons/polymorph.png',
@@ -1279,70 +1321,31 @@ function applyTasksData(data) {
     const body  = document.getElementById('body_' + char);
     const panel = document.getElementById('addpanel_' + char);
     if (!body || !panel) continue;
-
-    body.querySelectorAll('.task-row').forEach(row => {
-      const taskName = row.id.replace('task_' + char + '_', '');
-      if (!data[char].includes(taskName)) {
-        delete checkboxes[char + '_' + taskName];
-        row.remove();
-      }
-    });
-
-    data[char].forEach(task => {
-      if (!document.getElementById('task_' + char + '_' + task)) {
-        body.insertBefore(createTaskRow(char, task), panel);
-      }
-    });
-
-    if (lastCharData[char]) {
-      const charState = lastCharData[char];
-      for (const task in charState) {
-        if (SKIP_KEYS && SKIP_KEYS.has(task)) continue;
-        const row = document.getElementById('task_' + char + '_' + task);
-        if (!row) continue;
-        const cb = checkboxes[char + '_' + task];
-        if (cb) { cb.checked = !!charState[task]; row.classList.toggle('done', !!charState[task]); }
-      }
-    }
-  }
-  if (window._savedCharOrder) applyCharOrder(window._savedCharOrder);
-}
-
-function applyTasksUpdate(data) {
-  for (const char in data) {
-    const body  = document.getElementById('body_' + char);
-    const panel = document.getElementById('addpanel_' + char);
-    if (!body || !panel) continue;
-    const tasksObj = (data[char] && !Array.isArray(data[char])) ? data[char] : {};
+    // Obsłuż zarówno tablicę jak i obiekt z serwera
+    const raw = data[char];
+    const tasksObj = Array.isArray(raw)
+      ? Object.fromEntries(raw.map(t => [t, {done:false}]))
+      : (raw || {});
     const taskNames = Object.keys(tasksObj);
-    // Usuń stare
+    // Usuń taski których już nie ma
     body.querySelectorAll('.task-row').forEach(row => {
       const t = row.id.replace('task_'+char+'_','');
-      if (!tasksObj[t]) { delete checkboxes[char+'_'+t]; row.remove(); }
+      if (!taskNames.includes(t)) { delete checkboxes[char+'_'+t]; row.remove(); }
     });
     // Dodaj nowe i ustaw stan
     taskNames.forEach(task => {
       if (!document.getElementById('task_'+char+'_'+task))
-        body.insertBefore(createTaskRow(char,task), panel);
+        body.insertBefore(createTaskRow(char, task), panel);
       const done = !!(tasksObj[task] && tasksObj[task].done);
-      const cb = checkboxes[char+'_'+task];
+      const cb  = checkboxes[char+'_'+task];
       const row = document.getElementById('task_'+char+'_'+task);
-      if (cb) cb.checked = done;
+      if (cb)  cb.checked = done;
       if (row) row.classList.toggle('done', done);
     });
   }
   if (window._savedCharOrder) applyCharOrder(window._savedCharOrder);
 }
-socket.on('tasksUpdate', data => {
-  if (!isUnlocked()) { pendingTasksUpdate=data; return; }
-  applyTasksUpdate(data);
-});
 
-/* CHECKBOXES + MEDAL TIMER STATE FROM SERVER */
-const SKIP_KEYS = new Set(['horseTimer','spiritStoneTimer','hasStone','hasMedal','bioCurrent',
-  'bioDoneToday','bioDoneTotal','bioDoneChecked','bioTriedToday','stones','horseLevel','medalGivenToday']);
-
-let lastCharData = {};
 
 function applyCharsData(data) {
   lastCharData = data;
@@ -1465,37 +1468,33 @@ function applyCharsData(data) {
   }
 }
 
-function applyCharactersUpdate(data) {
+socket.on('charactersUpdate', data => {
   const anyCard = document.querySelector('.char-card');
   if (!anyCard) { window._pendingCharsData = data; lastCharData = data; return; }
   applyCharsData(data);
-}
-socket.on('charactersUpdate', data => {
-  if (!isUnlocked()) { pendingCharsUpdate=data; return; }
-  applyCharactersUpdate(data);
 });
 
-function applyCharOrderUpdate(order) { window._savedCharOrder=order; applyCharOrder(order); }
 socket.on('charOrderUpdate', order => {
-  if (!isUnlocked()) { pendingCharsOrder=order; return; }
-  applyCharOrderUpdate(order);
+  window._savedCharOrder = order;
+  applyCharOrder(order);
 });
 
-function applyCharsListUpdate(data) {
+socket.on('charsListUpdate', data => {
+  // Buduj karty dla wszystkich z listy których nie ma w DOM
   for (const name in data) {
     chars[name] = data[name];
     if (!document.querySelector('.char-card[data-char="' + name + '"]')) {
-      const iconVal = (typeof data[name]==='object') ? (data[name].icon||'') : (data[name]||'');
-      buildCharCard(name, iconVal);
+      const _icon = (typeof data[name]==='object') ? (data[name].icon||'') : (data[name]||'');
+      buildCharCard(name, _icon);
     }
   }
+  // Usuń karty których już nie ma na liście
   document.querySelectorAll('.char-card').forEach(card => {
-    if (!data[card.dataset.char]) { card.remove(); delete chars[card.dataset.char]; }
+    if (!data[card.dataset.char]) {
+      card.remove();
+      delete chars[card.dataset.char];
+    }
   });
-}
-socket.on('charsListUpdate', data => {
-  if (!isUnlocked()) { pendingCharsData=data; return; }
-  applyCharsListUpdate(data);
   if (window._savedCharOrder) applyCharOrder(window._savedCharOrder);
 
   // Po zbudowaniu kart — aplikuj zapisane dane tasks i characters
