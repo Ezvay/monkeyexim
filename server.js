@@ -10,6 +10,7 @@ const MONGO_URI = process.env.MONGO_URI || ''               // URI z MongoDB Atl
 const PORT      = process.env.PORT      || 3000
 
 app.use(express.static('public'))
+app.get('/', (req, res) => res.redirect('/characters.html'))
 
 /* ── DANE ── */
 let characters = {}   // { charName: { horseLevel, medals, spiritStones, ... } }
@@ -119,14 +120,21 @@ function startServer() {
     socket.on('checkPassword', (pass, cb) => { if(cb) cb(pass === PASSWORD) })
 
     // Zarządzanie postaciami
-    socket.on('addChar', (name) => {
-      if (!charsList[name]) charsList[name] = {}
+    socket.on('addChar', (data) => {
+      // Obsługa zarówno stringa jak i obiektu {name, icon}
+      const name = (typeof data === 'object') ? data.name : data
+      const icon = (typeof data === 'object') ? (data.icon || '') : ''
+      if (!name) return
+      if (!charsList[name]) charsList[name] = { icon }
+      else charsList[name].icon = icon
       if (!charOrder.includes(name)) charOrder.push(name)
       io.emit('charsListUpdate', charsList)
       io.emit('charOrderUpdate', charOrder)
       saveData()
     })
-    socket.on('removeChar', (name) => {
+    socket.on('removeChar', (data) => {
+      const name = (typeof data === 'object') ? data.name : data
+      if (!name) return
       delete charsList[name]
       delete characters[name]
       delete tasks[name]

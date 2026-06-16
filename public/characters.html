@@ -1510,7 +1510,9 @@ socket.on('charsListUpdate', data => {
   for (const name in data) {
     chars[name] = data[name];
     if (!document.querySelector('.char-card[data-char="' + name + '"]')) {
-      buildCharCard(name, data[name]);
+      // data[name] może być obiektem {icon} lub stringiem (ścieżką ikony)
+      const iconVal = (typeof data[name] === 'object') ? (data[name].icon || '') : (data[name] || '');
+      buildCharCard(name, iconVal);
     }
   }
   // Usuń karty których już nie ma na liście
