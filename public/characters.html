@@ -526,18 +526,6 @@
 <div class="bg-layer"></div>
 
 <!-- MODAL HASŁA -->
-<div class="auth-overlay" id="authOverlay">
-  <div class="auth-box">
-    <div class="auth-ornament"><div class="auth-diamond"></div></div>
-    <div class="auth-title">Strefa Chroniona</div>
-    <div class="auth-sub">Wpisz hasło aby wejść</div>
-    <div class="auth-input-wrap">
-      <input class="auth-input" id="authInput" type="password" placeholder="••••••••" autocomplete="off">
-    </div>
-    <div class="auth-error" id="authError"></div>
-    <button class="auth-btn" onclick="submitPassword()">Wejdź</button>
-  </div>
-</div>
 
 <!-- UNIVERSAL INIT MODAL -->
 <div class="stone-modal-overlay hidden" id="initModal">
@@ -550,7 +538,7 @@
   </div>
 </div>
 
-<div class="page-content locked" id="pageContent">
+<div class="page-content" id="pageContent">
 
 <div class="topnav">
   <div class="nav-left">
@@ -606,47 +594,13 @@
 <script>
 const socket = io();
 
-/* === AUTORYZACJA === */
-const authOverlay = document.getElementById('authOverlay');
-const pageContent = document.getElementById('pageContent');
-const authInput   = document.getElementById('authInput');
-const authError   = document.getElementById('authError');
 
-// Sprawdź czy hasło zapisane w sessionStorage
-if (localStorage.getItem('auth') === '1') {
-  unlock();
-}
 
-authInput.addEventListener('keydown', e => { if (e.key === 'Enter') submitPassword(); });
-// Fokus na input po załadowaniu
-setTimeout(() => authInput.focus(), 100);
 
-function submitPassword() {
-  const pass = authInput.value;
-  socket.emit('checkPassword', pass, ok => {
-    if (ok) { localStorage.setItem('auth','1'); unlock(); }
-    else {
-      authInput.classList.add('error');
-      authError.innerText = 'Nieprawidłowe hasło';
-      setTimeout(() => { authInput.classList.remove('error'); authError.innerText=''; }, 1500);
-      authInput.value=''; authInput.focus();
-    }
-  });
-}
-
-function unlock() {
-  authOverlay.classList.add('hidden');
-  pageContent.classList.remove('locked');
-  setTimeout(() => { authOverlay.style.display = 'none'; }, 400);
-  if (pendingCharsData)   { applyCharsListUpdate(pendingCharsData);   pendingCharsData=null; }
-  if (pendingCharsOrder)  { applyCharOrderUpdate(pendingCharsOrder);  pendingCharsOrder=null; }
-  if (pendingCharsUpdate) { applyCharsData(pendingCharsUpdate);       pendingCharsUpdate=null; }
-  if (pendingTasksUpdate) { applyTasksData(pendingTasksUpdate);       pendingTasksUpdate=null; }
-}
 
 let chars = {};
 let pendingCharsData=null, pendingCharsOrder=null, pendingCharsUpdate=null, pendingTasksUpdate=null;
-function isUnlocked() { const o=document.getElementById('authOverlay'); return !o||o.classList.contains('hidden')||o.style.display==='none'; }
+function isUnlocked() { return true; }
 const icons = {
   KU:    '/icons/skillbook.png',
   Poly:  '/icons/polymorph.png',
