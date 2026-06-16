@@ -14,7 +14,7 @@
     }
     return h.toString(16).padStart(8,'0');
   }
-  const CORRECT = simpleHash('platforma');
+  const CORRECT = simpleHash('blabla12');
 
   function isAuthed() {
     try {
