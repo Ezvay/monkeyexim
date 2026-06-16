@@ -8,9 +8,9 @@ const { MongoClient } = require("mongodb")
    KONFIGURACJA
 ====================== */
 
-const PASSWORD  = "platforma"
-const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://kawulokdarek8_db_user:platforma@cluster0.kdommpz.mongodb.net/global_timers?retryWrites=true&w=majority&appName=Cluster0"
-const DB_NAME   = "global_timers"
+const PASSWORD  = "blabla12"
+const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://smonky:blabla12@smonky.htfxws9.mongodb.net/?appName=smonky"
+const DB_NAME   = "smonkey"
 const COL_NAME  = "state"
 const DOC_ID    = "main"
 
